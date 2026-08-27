@@ -324,9 +324,36 @@ func (c *Client) DownloadFile(ctx context.Context, fileURL, destPath string) err
 		return fmt.Errorf("create directory: %w", err)
 	}
 
-	return c.doWithRetry(ctx, func() error {
+	err := c.doWithRetry(ctx, func() error {
 		return c.downloadOnce(ctx, fileURL, destPath)
 	})
+	if err == nil {
+		return nil
+	}
+
+	// The public data CloudFront distribution geo-blocks some overseas data
+	// centres with HTTP 403. The same objects are also published in the
+	// Digital Agency's public S3 bucket. Fall back only for that exact host and
+	// status, preserving the object path and the normal atomic/retry behaviour.
+	if status, ok := errors.AsType[*httpStatusError](err); ok && status.status == http.StatusForbidden {
+		if fallbackURL, ok := publicS3FallbackURL(fileURL); ok {
+			slog.Warn("download forbidden by CDN; trying public S3 source",
+				"event", "download_fallback", "source", fileURL, "fallback", fallbackURL)
+			return c.doWithRetry(ctx, func() error {
+				return c.downloadOnce(ctx, fallbackURL, destPath)
+			})
+		}
+	}
+	return err
+}
+
+func publicS3FallbackURL(rawURL string) (string, bool) {
+	u, err := url.Parse(rawURL)
+	if err != nil || u.Scheme != "https" || !strings.EqualFold(u.Hostname(), "data.address-br.digital.go.jp") {
+		return "", false
+	}
+	u.Host = "gov-csv-export-public.s3.ap-northeast-1.amazonaws.com"
+	return u.String(), true
 }
 
 // downloadOnce performs one complete download attempt: request, status check,
