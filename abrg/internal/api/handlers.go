@@ -163,6 +163,58 @@ func (s *GinServer) MatchHandler(c *gin.Context) {
 	c.JSON(http.StatusOK, result)
 }
 
+// ValidateHandler converts the best ABR match into a small contract intended
+// for address-validation clients. A 200 response does not imply that the
+// address exists; clients must inspect the exists/status fields.
+func (s *GinServer) ValidateHandler(c *gin.Context) {
+	var req addressRequest
+	if err := c.ShouldBindQuery(&req); err != nil {
+		sendBadRequest(c, formatBindError(err))
+		return
+	}
+
+	query, ok := s.prepareQuery(c, req.Address, req.Category, req.Pref, 1)
+	if !ok {
+		return
+	}
+
+	result, err := s.matcher.Match(c.Request.Context(), query)
+	if err != nil {
+		sendMatchQueryError(c, "validate request failed", "validate", err, query)
+		return
+	}
+
+	response := model.ValidateResponse{
+		Status:       model.ValidationStatusNotFound,
+		InputAddress: req.Address,
+		MatchLevel:   model.MatchLevelUnknown,
+		ResultInfo:   result.ResultInfo,
+	}
+	if len(result.Features) > 0 {
+		best := result.Features[0]
+		response.MatchedAddress = best.MatchedAddress
+		response.UnmatchedAddress = best.UnmatchedAddress
+		response.MatchLevel = best.MatchLevel
+		response.IDs = best.IDs
+		response.StructuredAddress = best.StructuredAddress
+		response.Exists = best.MatchLevel == model.MatchLevelResidentialDetail || best.MatchLevel == model.MatchLevelParcel
+		response.Exact = response.Exists && len(best.UnmatchedAddress) == 0
+
+		switch {
+		case response.Exact:
+			response.Status = model.ValidationStatusExact
+		case response.Exists:
+			response.Status = model.ValidationStatusBaseOnly
+		case best.MatchLevel != model.MatchLevelUnknown:
+			response.Status = model.ValidationStatusIncomplete
+		}
+		setMatchLevelLog(c, best.MatchLevel)
+	}
+
+	s.setResultInfo(&response.ResultInfo)
+	c.JSON(http.StatusOK, response)
+}
+
 func (s *GinServer) NormalizeHandler(c *gin.Context) {
 	var req normalizeRequest
 	if err := c.ShouldBindQuery(&req); err != nil {

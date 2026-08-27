@@ -453,6 +453,9 @@ func TestRootHandler(t *testing.T) {
 	if slices.Contains(response.Endpoints, "/match") {
 		t.Errorf("GET / endpoints should not contain %q", "/match")
 	}
+	if slices.Contains(response.Endpoints, "/validate") {
+		t.Errorf("GET / endpoints should not contain %q", "/validate")
+	}
 	if slices.Contains(response.Endpoints, "/geocode") {
 		t.Errorf("GET / endpoints should not contain %q", "/geocode")
 	}
@@ -516,14 +519,14 @@ func TestRegisterEndpoints(t *testing.T) {
 		{
 			name:       "all components, position enabled",
 			server:     &GinServer{matcher: &mockMatcher{}, reverseGeocoder: &mockReverseGeocoder{}, enabledPos: true},
-			wantPaths:  []string{"/", "/geocode", "/health", "/match", "/normalize", "/reverse"},
-			wantListed: []string{"/", "/health", "/normalize", "/match", "/geocode", "/reverse"},
+			wantPaths:  []string{"/", "/geocode", "/health", "/match", "/normalize", "/reverse", "/validate"},
+			wantListed: []string{"/", "/health", "/normalize", "/match", "/validate", "/geocode", "/reverse"},
 		},
 		{
 			name:       "all components, position disabled",
 			server:     &GinServer{matcher: &mockMatcher{}, reverseGeocoder: &mockReverseGeocoder{}},
-			wantPaths:  []string{"/", "/geocode", "/health", "/match", "/normalize", "/reverse"},
-			wantListed: []string{"/", "/health", "/normalize", "/match"},
+			wantPaths:  []string{"/", "/geocode", "/health", "/match", "/normalize", "/reverse", "/validate"},
+			wantListed: []string{"/", "/health", "/normalize", "/match", "/validate"},
 		},
 	}
 
@@ -1306,6 +1309,84 @@ func TestMatchHandler_Integration(t *testing.T) {
 				if response["status"] != "error" {
 					t.Errorf("MatchHandler() status field = %v, want %q", response["status"], "error")
 				}
+			}
+		})
+	}
+}
+
+func TestValidateHandler(t *testing.T) {
+	tests := []struct {
+		name       string
+		feature    model.MatchedResult
+		wantExists bool
+		wantExact  bool
+		wantStatus model.ValidationStatus
+	}{
+		{
+			name: "exact residential address",
+			feature: model.MatchedResult{
+				MatchedAddress: "東京都千代田区紀尾井町1-3",
+				MatchLevel:     model.MatchLevelResidentialDetail,
+			},
+			wantExists: true,
+			wantExact:  true,
+			wantStatus: model.ValidationStatusExact,
+		},
+		{
+			name: "official base with building suffix",
+			feature: model.MatchedResult{
+				MatchedAddress:   "東京都千代田区紀尾井町1-3",
+				UnmatchedAddress: []string{"東京ガーデンテラス紀尾井町19階"},
+				MatchLevel:       model.MatchLevelResidentialDetail,
+			},
+			wantExists: true,
+			wantExact:  false,
+			wantStatus: model.ValidationStatusBaseOnly,
+		},
+		{
+			name: "only a block was supplied",
+			feature: model.MatchedResult{
+				MatchedAddress: "東京都千代田区紀尾井町1",
+				MatchLevel:     model.MatchLevelResidentialBlock,
+			},
+			wantStatus: model.ValidationStatusIncomplete,
+		},
+		{
+			name: "unknown address",
+			feature: model.MatchedResult{
+				UnmatchedAddress: []string{"存在しない住所"},
+				MatchLevel:       model.MatchLevelUnknown,
+			},
+			wantStatus: model.ValidationStatusNotFound,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			server := &GinServer{
+				matcher: &mockMatcher{response: &model.MatchResponse{
+					Features: []model.MatchedResult{tt.feature},
+				}},
+				enabledCategory: "all",
+				enabledPref:     "all",
+			}
+			router := gin.New()
+			router.GET("/validate", server.ValidateHandler)
+
+			w := httptest.NewRecorder()
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/validate?address=東京都千代田区紀尾井町1-3", nil)
+			router.ServeHTTP(w, req)
+			if w.Code != http.StatusOK {
+				t.Fatalf("status = %d, want %d; body=%s", w.Code, http.StatusOK, w.Body.String())
+			}
+
+			var response model.ValidateResponse
+			if err := json.Unmarshal(w.Body.Bytes(), &response); err != nil {
+				t.Fatalf("unmarshal response: %v", err)
+			}
+			if response.Exists != tt.wantExists || response.Exact != tt.wantExact || response.Status != tt.wantStatus {
+				t.Errorf("result = (exists=%v exact=%v status=%s), want (%v %v %s)",
+					response.Exists, response.Exact, response.Status, tt.wantExists, tt.wantExact, tt.wantStatus)
 			}
 		})
 	}

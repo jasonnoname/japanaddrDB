@@ -52,6 +52,7 @@ API サーバーを起動します。事前に `cache build` が必要です。
 |---------------|------|
 | `/normalize` | 住所正規化（表記揺れの統一、ABR データと照合なし） |
 | `/match` | 住所マッチング（ABR データと照合） |
+| `/validate` | 住所存在チェック（アプリ連携向け） |
 | `/geocode` | ジオコーディング（住所→座標） |
 | `/reverse` | 逆ジオコーディング（座標→住所）※実験的 |
 | `/health` | ヘルスチェック |
@@ -59,6 +60,19 @@ API サーバーを起動します。事前に `cache build` が必要です。
 ※実験的なエンドポイントです。今後仕様が変わる可能性があります。
 
 API 仕様: [openapi/openapi.yml](openapi/openapi.yml)
+
+#### 住所存在チェック
+
+```bash
+curl -G 'http://localhost:3000/validate' \
+  --data-urlencode 'address=東京都千代田区紀尾井町1-3'
+```
+
+`exists=true` は、ABR に住居番号または地番まで存在することを表します。
+`exact=true` は、さらに入力全体が照合できたことを表します。ABR は建物名・部屋番号を
+収録していないため、住所基底が存在して建物名だけが未照合の場合は
+`status=base_address_only` になります。HTTP 200 だけで存在判定をせず、必ず
+`exists` と `status` を確認してください。
 
 ### 環境変数
 

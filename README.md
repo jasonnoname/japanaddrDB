@@ -38,6 +38,7 @@ docker compose run --rm abrg_app cache build
 # start the API server
 docker compose up -d abrg_app
 curl -s "http://localhost:3000/geocode?address=東京都千代田区紀尾井町1-3"
+curl -sG "http://localhost:3000/validate" --data-urlencode "address=東京都千代田区紀尾井町1-3"
 ```
 
 Data persists in three named volumes.

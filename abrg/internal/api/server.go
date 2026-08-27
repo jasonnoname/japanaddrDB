@@ -143,6 +143,8 @@ func endpointSpecs() []endpointSpec {
 		{path: "/normalize", handler: (*GinServer).NormalizeHandler},
 		{path: "/match", handler: (*GinServer).MatchHandler,
 			hasComponent: func(s *GinServer) bool { return s.matcher != nil }},
+		{path: "/validate", handler: (*GinServer).ValidateHandler,
+			hasComponent: func(s *GinServer) bool { return s.matcher != nil }},
 		{path: "/geocode", handler: (*GinServer).GeocodeHandler, needsPos: true,
 			hasComponent: func(s *GinServer) bool { return s.matcher != nil }},
 		{path: "/reverse", handler: (*GinServer).ReverseHandler, needsPos: true,

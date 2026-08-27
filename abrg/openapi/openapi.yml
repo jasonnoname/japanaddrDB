@@ -81,6 +81,33 @@ paths:
           $ref: "#/components/responses/badRequest"
         "500":
           $ref: "#/components/responses/internalServerError"
+  "/validate":
+    get:
+      summary: 住所存在チェック
+      description: |
+        入力住所をABRデータと照合し、公式の住居番号または地番が存在するかを返します。
+        `exists` は住居番号 (`rsdtdsp_rsdt`) または地番 (`parcel`) が見つかった場合に true です。
+        `exact` はさらに入力全体がマッチした場合に true です。建物名・部屋番号はABRの対象外なので、
+        住所基底が存在しても `status` が `base_address_only` になることがあります。
+        HTTP 200は検索処理の成功を示すだけなので、判定には必ず `exists` と `status` を使用してください。
+      operationId: validateAddress
+      parameters:
+        - $ref: "#/components/parameters/address"
+        - $ref: "#/components/parameters/category"
+        - $ref: "#/components/parameters/pref"
+      responses:
+        "200":
+          description: 住所存在チェック結果
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ValidateResponse"
+        "400":
+          $ref: "#/components/responses/badRequest"
+        "500":
+          $ref: "#/components/responses/internalServerError"
+        "503":
+          $ref: "#/components/responses/serviceUnavailable"
   "/geocode":
     get:
       summary: ジオコーディング
@@ -160,7 +187,7 @@ paths:
                     items:
                       type: string
                     description: 利用可能なエンドポイント一覧
-                    example: ["/", "/health", "/normalize", "/match", "/geocode", "/reverse"]
+                    example: ["/", "/health", "/normalize", "/match", "/validate", "/geocode", "/reverse"]
                 required:
                   - name
                   - version
@@ -212,6 +239,56 @@ components:
         - rsdtdsp_blk
         - rsdtdsp_rsdt
         - parcel
+
+    ValidateResponse:
+      type: object
+      properties:
+        exists:
+          type: boolean
+          description: 公式の住居番号または地番が見つかったか
+          example: true
+        exact:
+          type: boolean
+          description: 入力全体が公式住所としてマッチしたか
+          example: true
+        status:
+          type: string
+          enum: [exact, base_address_only, insufficient_detail, not_found]
+          description: |
+            判定結果。`base_address_only` は住所基底は存在するが建物名など未照合部分がある状態、
+            `insufficient_detail` は都道府県・市区町村・町字・街区までしか指定されていない状態です。
+          example: exact
+        input_address:
+          type: string
+          example: "東京都千代田区紀尾井町1-3"
+        matched_address:
+          type: string
+          example: "東京都千代田区紀尾井町1-3"
+        unmatched_address:
+          type: array
+          nullable: true
+          items:
+            type: string
+          example: null
+        match_level:
+          $ref: "#/components/schemas/MatchLevelEnum"
+        ids:
+          $ref: "#/components/schemas/Ids"
+        structured_address:
+          $ref: "#/components/schemas/StructuredAddress"
+        result_info:
+          $ref: "#/components/schemas/ResultInfo"
+      required:
+        - exists
+        - exact
+        - status
+        - input_address
+        - matched_address
+        - unmatched_address
+        - match_level
+        - ids
+        - structured_address
+        - result_info
 
     Ids:
       type: object

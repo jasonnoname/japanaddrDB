@@ -66,7 +66,7 @@ func TestNewGinServer_WithoutCache(t *testing.T) {
 			t.Errorf("EnabledPos=%v: registered paths = %v, want %v", enabledPos, got, want)
 		}
 
-		for _, target := range []string{"/match?address=東京都", "/geocode?address=東京都", "/reverse?lat=35.6&lon=139.7"} {
+		for _, target := range []string{"/match?address=東京都", "/validate?address=東京都", "/geocode?address=東京都", "/reverse?lat=35.6&lon=139.7"} {
 			if w := serveRequest(t, server, target); w.Code != http.StatusNotFound {
 				t.Errorf("EnabledPos=%v: GET %s status = %d, want %d", enabledPos, target, w.Code, http.StatusNotFound)
 			}
@@ -98,7 +98,7 @@ func TestNewGinServer_WithCachePosEnabled(t *testing.T) {
 		CacheConfig: cache.Config{EnabledPos: "true", EnabledCategory: "basic", EnabledPref: "13"},
 	})
 
-	want := []string{"/", "/geocode", "/health", "/match", "/normalize", "/reverse"}
+	want := []string{"/", "/geocode", "/health", "/match", "/normalize", "/reverse", "/validate"}
 	if got := registeredPaths(server); !slices.Equal(got, want) {
 		t.Errorf("registered paths = %v, want %v", got, want)
 	}
@@ -223,7 +223,7 @@ func TestNewGinServer_WithCachePosDisabled(t *testing.T) {
 	})
 
 	// The position endpoints stay registered but answer with the disabled response.
-	want := []string{"/", "/geocode", "/health", "/match", "/normalize", "/reverse"}
+	want := []string{"/", "/geocode", "/health", "/match", "/normalize", "/reverse", "/validate"}
 	if got := registeredPaths(server); !slices.Equal(got, want) {
 		t.Errorf("registered paths = %v, want %v", got, want)
 	}
