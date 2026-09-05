@@ -1060,7 +1060,7 @@ func TestRootHandler_FullInfo(t *testing.T) {
 			enabledPos:         true,
 			hasMatcher:         true,
 			hasReverseGeocoder: true,
-			wantEndpointCount:  6, // /, /health, /normalize, /match, /geocode, /reverse
+			wantEndpointCount:  7, // /, /health, /normalize, /match, /validate, /geocode, /reverse
 		},
 		{
 			name:               "only normalize",
@@ -1081,7 +1081,7 @@ func TestRootHandler_FullInfo(t *testing.T) {
 			enabledPos:         true,
 			hasMatcher:         true,
 			hasReverseGeocoder: false,
-			wantEndpointCount:  5, // /, /health, /normalize, /match, /geocode
+			wantEndpointCount:  6, // /, /health, /normalize, /match, /validate, /geocode
 		},
 	}
 
@@ -1496,3 +1496,4 @@ func TestReverseHandler_Integration(t *testing.T) {
 		})
 	}
 }
+
